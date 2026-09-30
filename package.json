@@ -1,0 +1,19 @@
+{
+  "name": "unllm-sdk-contract-tests",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.13.1",
+  "scripts": {
+    "test:sdk": "tsx tests/sdk/smoke.ts",
+    "test:live": "tsx tests/sdk/live.ts",
+    "typecheck:sdk": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "0.68.0",
+    "@google/genai": "1.29.0",
+    "@types/node": "24.5.2",
+    "openai": "6.7.0",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}

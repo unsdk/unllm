@@ -1,0 +1,58 @@
+schema_version = 1
+
+[server]
+listen = "127.0.0.1:8080"
+client_key_env = ["UNLLM_CLIENT_KEY"]
+connect_timeout_ms = 10000
+headers_timeout_ms = 30000
+stream_idle_timeout_ms = 60000
+non_stream_timeout_ms = 300000
+shutdown_grace_ms = 30000
+log = "info"
+
+[media]
+enabled = false
+allowed_hosts = []
+
+[[upstreams]]
+name = "openai-main"
+protocol = "open_ai_responses"
+base_url = "https://api.openai.com/"
+token_env = "OPENAI_API_KEY"
+
+[[upstreams]]
+name = "anthropic-main"
+protocol = "anthropic_messages"
+base_url = "https://api.anthropic.com/"
+token_env = "ANTHROPIC_API_KEY"
+
+[[upstreams]]
+name = "gemini-main"
+protocol = "gemini"
+base_url = "https://generativelanguage.googleapis.com/"
+token_env = "GEMINI_API_KEY"
+
+[[routes]]
+alias = "reasoning"
+upstream = "openai-main"
+remote_model = "gpt-5"
+operations = ["generate"]
+generate_protocol = "open_ai_responses"
+mode = "strict"
+capabilities = ["streaming", "text", "image", "file", "function_tools", "structured_output", "reasoning"]
+
+[[routes]]
+alias = "writer"
+upstream = "anthropic-main"
+remote_model = "claude-sonnet-4-5"
+operations = ["generate"]
+mode = "strict"
+capabilities = ["streaming", "text", "image", "file", "function_tools", "reasoning"]
+
+[[routes]]
+alias = "multimodal"
+upstream = "gemini-main"
+remote_model = "gemini-2.5-pro"
+operations = ["generate", "embed", "image"]
+mode = "strict"
+capabilities = ["streaming", "text", "image", "audio", "video", "file", "function_tools", "structured_output", "reasoning", "embeddings"]

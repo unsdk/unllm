@@ -1,0 +1,23 @@
+[package]
+name = "unllm-gemini"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Google Gemini generateContent and embedding codecs for unllm"
+documentation = "https://docs.rs/unllm-gemini"
+readme = "../../README.md"
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+base64.workspace = true
+bytes.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+unllm-core = { path = "../unllm-core", version = "0.1.0" }
+
+[lints]
+workspace = true

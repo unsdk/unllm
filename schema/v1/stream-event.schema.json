@@ -1,0 +1,1100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StreamEventEnvelope",
+  "description": "Versioned serialized stream event contract.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "value"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Canonical schema version. Version 1 is currently supported.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "value": {
+      "description": "Canonical stream event.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/StreamEvent"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "Annotation": {
+      "description": "A portable response annotation.",
+      "oneOf": [
+        {
+          "description": "A citation into a source.",
+          "type": "object",
+          "required": [
+            "source",
+            "type"
+          ],
+          "properties": {
+            "end": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "source": {
+              "type": "string"
+            },
+            "start": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "citation"
+              ]
+            }
+          }
+        },
+        {
+          "description": "A safety classification.",
+          "type": "object",
+          "required": [
+            "blocked",
+            "category",
+            "type"
+          ],
+          "properties": {
+            "blocked": {
+              "type": "boolean"
+            },
+            "category": {
+              "type": "string"
+            },
+            "probability": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "safety"
+              ]
+            }
+          }
+        },
+        {
+          "description": "A refusal marker.",
+          "type": "object",
+          "required": [
+            "reason",
+            "type"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "refusal"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ContentDelta": {
+      "description": "A typed incremental content payload.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "text",
+            "type"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "text"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "text",
+            "type"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "reasoning"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "call_id",
+            "fragment",
+            "type"
+          ],
+          "properties": {
+            "call_id": {
+              "type": "string"
+            },
+            "fragment": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "tool_arguments"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "part",
+            "type"
+          ],
+          "properties": {
+            "part": {
+              "$ref": "#/definitions/ContentPart"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "media"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ContentPart": {
+      "description": "A typed content item.",
+      "oneOf": [
+        {
+          "description": "Plain text.",
+          "type": "object",
+          "required": [
+            "text",
+            "type"
+          ],
+          "properties": {
+            "annotations": {
+              "description": "Structured annotations associated with the text.",
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Annotation"
+              }
+            },
+            "text": {
+              "description": "Text content.",
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "text"
+              ]
+            }
+          }
+        },
+        {
+          "description": "An image.",
+          "type": "object",
+          "required": [
+            "asset",
+            "type"
+          ],
+          "properties": {
+            "asset": {
+              "$ref": "#/definitions/MediaAsset"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "image"
+              ]
+            }
+          }
+        },
+        {
+          "description": "Audio.",
+          "type": "object",
+          "required": [
+            "asset",
+            "type"
+          ],
+          "properties": {
+            "asset": {
+              "$ref": "#/definitions/MediaAsset"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "audio"
+              ]
+            }
+          }
+        },
+        {
+          "description": "Video.",
+          "type": "object",
+          "required": [
+            "asset",
+            "type"
+          ],
+          "properties": {
+            "asset": {
+              "$ref": "#/definitions/MediaAsset"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "video"
+              ]
+            }
+          }
+        },
+        {
+          "description": "A general file or document.",
+          "type": "object",
+          "required": [
+            "asset",
+            "type"
+          ],
+          "properties": {
+            "asset": {
+              "$ref": "#/definitions/MediaAsset"
+            },
+            "filename": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "file"
+              ]
+            }
+          }
+        },
+        {
+          "description": "A model-requested function invocation.",
+          "type": "object",
+          "required": [
+            "call",
+            "type"
+          ],
+          "properties": {
+            "call": {
+              "$ref": "#/definitions/ToolCall"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "tool_call"
+              ]
+            }
+          }
+        },
+        {
+          "description": "The result of a previous tool invocation.",
+          "type": "object",
+          "required": [
+            "result",
+            "type"
+          ],
+          "properties": {
+            "result": {
+              "$ref": "#/definitions/ToolResult"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "tool_result"
+              ]
+            }
+          }
+        },
+        {
+          "description": "Model reasoning or thinking content.",
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "extensions": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "text": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "reasoning"
+              ]
+            }
+          }
+        },
+        {
+          "description": "A structured refusal.",
+          "type": "object",
+          "required": [
+            "reason",
+            "type"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "refusal"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ErrorKind": {
+      "description": "Stable high-level error categories used by the gateway.",
+      "type": "string",
+      "enum": [
+        "authentication",
+        "rate_limit",
+        "invalid_request",
+        "unsupported",
+        "upstream",
+        "timeout",
+        "cancelled",
+        "internal"
+      ]
+    },
+    "FinishReason": {
+      "description": "A normalized finish reason.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "stop"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "length"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "tool_call"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "content_filter"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "error"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "raw"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "other"
+              ]
+            },
+            "raw": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "MediaAsset": {
+      "description": "A media value used by multimodal inputs and outputs.",
+      "type": "object",
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "extensions": {
+          "description": "Provider-specific media metadata.",
+          "type": "object",
+          "additionalProperties": true
+        },
+        "height": {
+          "description": "Optional pixel height.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "sha256": {
+          "description": "Optional SHA-256 digest in lowercase hexadecimal form.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "description": "The media payload or reference.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/MediaSource"
+            }
+          ]
+        },
+        "width": {
+          "description": "Optional pixel width.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    "MediaSource": {
+      "description": "The backing source of a media asset.",
+      "oneOf": [
+        {
+          "description": "Bytes held directly by the request or response.",
+          "type": "object",
+          "required": [
+            "data",
+            "kind",
+            "mime_type"
+          ],
+          "properties": {
+            "data": {
+              "description": "Raw decoded bytes. Canonical JSON uses base64.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "inline"
+              ]
+            },
+            "mime_type": {
+              "description": "IANA media type.",
+              "type": "string"
+            }
+          }
+        },
+        {
+          "description": "A remote URL.",
+          "type": "object",
+          "required": [
+            "kind",
+            "url"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "url"
+              ]
+            },
+            "mime_type": {
+              "description": "Optional IANA media type.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "url": {
+              "description": "Absolute media URL.",
+              "type": "string"
+            }
+          }
+        },
+        {
+          "description": "A provider-managed file reference.",
+          "type": "object",
+          "required": [
+            "id",
+            "kind",
+            "provider"
+          ],
+          "properties": {
+            "id": {
+              "description": "Provider file identifier.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "provider_file"
+              ]
+            },
+            "mime_type": {
+              "description": "Optional IANA media type.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "provider": {
+              "description": "Provider namespace that owns the file.",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "Operation": {
+      "description": "A top-level inference operation.",
+      "oneOf": [
+        {
+          "description": "Conversational or multimodal generation.",
+          "type": "string",
+          "enum": [
+            "generate"
+          ]
+        },
+        {
+          "description": "Embedding generation.",
+          "type": "string",
+          "enum": [
+            "embed"
+          ]
+        },
+        {
+          "description": "Image generation, editing, or variation.",
+          "type": "string",
+          "enum": [
+            "image"
+          ]
+        }
+      ]
+    },
+    "Protocol": {
+      "description": "A protocol understood by unllm.",
+      "oneOf": [
+        {
+          "description": "OpenAI Chat Completions.",
+          "type": "string",
+          "enum": [
+            "open_ai_chat_completions"
+          ]
+        },
+        {
+          "description": "OpenAI Responses.",
+          "type": "string",
+          "enum": [
+            "open_ai_responses"
+          ]
+        },
+        {
+          "description": "Anthropic Messages.",
+          "type": "string",
+          "enum": [
+            "anthropic_messages"
+          ]
+        },
+        {
+          "description": "Google Gemini Developer API.",
+          "type": "string",
+          "enum": [
+            "gemini"
+          ]
+        }
+      ]
+    },
+    "StreamEvent": {
+      "description": "A normalized streaming event.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "model",
+            "type"
+          ],
+          "properties": {
+            "extensions": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "model": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "response_start"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "block_index",
+            "candidate_index",
+            "type"
+          ],
+          "properties": {
+            "block_index": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "candidate_index": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "part": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ContentPart"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "content_block_start"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "block_index",
+            "candidate_index",
+            "delta",
+            "type"
+          ],
+          "properties": {
+            "block_index": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "candidate_index": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "delta": {
+              "$ref": "#/definitions/ContentDelta"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "content_delta"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "block_index",
+            "candidate_index",
+            "type"
+          ],
+          "properties": {
+            "block_index": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "candidate_index": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "content_block_stop"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "usage"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "usage"
+              ]
+            },
+            "usage": {
+              "$ref": "#/definitions/Usage"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "candidate_index",
+            "type"
+          ],
+          "properties": {
+            "candidate_index": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/FinishReason"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "finish"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "error",
+            "type"
+          ],
+          "properties": {
+            "error": {
+              "$ref": "#/definitions/UnllmError"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "error"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "payload",
+            "provider",
+            "type"
+          ],
+          "properties": {
+            "event_type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "payload": true,
+            "provider": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "raw"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ToolCall": {
+      "description": "A completed tool call.",
+      "type": "object",
+      "required": [
+        "arguments",
+        "id",
+        "name"
+      ],
+      "properties": {
+        "arguments": {
+          "description": "Completed JSON arguments."
+        },
+        "extensions": {
+          "description": "Provider-specific call data.",
+          "type": "object",
+          "additionalProperties": true
+        },
+        "id": {
+          "description": "Stable call identifier.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Function name.",
+          "type": "string"
+        }
+      }
+    },
+    "ToolResult": {
+      "description": "A completed tool result.",
+      "type": "object",
+      "required": [
+        "call_id",
+        "content"
+      ],
+      "properties": {
+        "call_id": {
+          "description": "Identifier of the matching tool call.",
+          "type": "string"
+        },
+        "content": {
+          "description": "Ordered tool result content.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ContentPart"
+          }
+        },
+        "extensions": {
+          "description": "Provider-specific result data.",
+          "type": "object",
+          "additionalProperties": true
+        },
+        "is_error": {
+          "description": "True when the tool invocation failed.",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "UnllmError": {
+      "description": "A normalized error safe to encode for another protocol.",
+      "type": "object",
+      "required": [
+        "code",
+        "kind",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "description": "Stable machine-readable code.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "High-level category.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ErrorKind"
+            }
+          ]
+        },
+        "message": {
+          "description": "Safe English message.",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "Safe structured metadata."
+        },
+        "operation": {
+          "description": "Optional operation.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Operation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_protocol": {
+          "description": "Optional source protocol.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Protocol"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target": {
+          "description": "Optional target protocol.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Protocol"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Usage": {
+      "description": "Token usage reported by an upstream provider.",
+      "type": "object",
+      "properties": {
+        "cached_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        },
+        "input_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "output_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "reasoning_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "total_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}

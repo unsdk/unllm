@@ -1,0 +1,28 @@
+name: Live provider contracts
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:live
+        env:
+          UNLLM_LIVE_BASE_URL: ${{ secrets.UNLLM_LIVE_BASE_URL }}
+          UNLLM_LIVE_API_KEY: ${{ secrets.UNLLM_LIVE_API_KEY }}
+          UNLLM_LIVE_MODEL: ${{ secrets.UNLLM_LIVE_MODEL }}

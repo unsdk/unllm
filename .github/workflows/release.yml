@@ -1,0 +1,252 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version tag in vX.Y.Z form
+        required: true
+        type: string
+      commit:
+        description: Optional commit SHA on the default branch; defaults to its latest commit
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+  id-token: write
+
+concurrency:
+  group: release-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.commit || github.event.repository.default_branch) || github.ref }}
+      - id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_COMMIT: ${{ inputs.commit }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          cargo_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            [[ "$INPUT_VERSION" == v* ]]
+            version="${INPUT_VERSION#v}"
+            tag="$INPUT_VERSION"
+            git fetch origin "$DEFAULT_BRANCH" --tags
+            target_commit="$INPUT_COMMIT"
+            if [[ -z "$target_commit" ]]; then
+              target_commit="$(git rev-parse "origin/$DEFAULT_BRANCH")"
+            fi
+            git merge-base --is-ancestor "$target_commit" "origin/$DEFAULT_BRANCH"
+            [[ "$cargo_version" == "$version" ]]
+            if git rev-parse "$tag" >/dev/null 2>&1; then
+              [[ "$(git rev-list -n 1 "$tag")" == "$target_commit" ]]
+            else
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag -a "$tag" "$target_commit" -m "Release $tag"
+              git push origin "$tag"
+            fi
+          else
+            tag="$GITHUB_REF_NAME"
+            version="${tag#v}"
+            [[ "$cargo_version" == "$version" ]]
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+      - run: cargo test --workspace --all-features --locked
+      - run: cargo run -p unllm-core --example generate-schema -- --check
+      - run: cargo build -p unllm-gateway --locked
+      - run: pnpm typecheck:sdk
+      - run: pnpm test:sdk
+      - name: Verify publishable packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for package in unllm-core unllm-openai unllm-anthropic unllm-gemini unllm unllm-gateway; do
+            cargo package -p "$package" --list --allow-dirty
+          done
+
+  publish-crates:
+    needs: [prepare, verify]
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      STATIC_CRATES_IO_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: dtolnay/rust-toolchain@stable
+      - id: auth
+        if: env.STATIC_CRATES_IO_TOKEN == ''
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1
+      - name: Publish in dependency order
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ env.STATIC_CRATES_IO_TOKEN || steps.auth.outputs.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          for package in unllm-core unllm-openai unllm-anthropic unllm-gemini unllm unllm-gateway; do
+            if curl --fail --silent --user-agent "unllm-release/${VERSION}" "https://crates.io/api/v1/crates/${package}/${VERSION}" >/dev/null; then
+              echo "${package}@${VERSION} is already published"
+            else
+              cargo publish -p "$package" --dry-run --locked
+              cargo publish -p "$package" --locked
+            fi
+            for attempt in {1..30}; do
+              if curl --fail --silent --user-agent "unllm-release/${VERSION}" "https://crates.io/api/v1/crates/${package}/${VERSION}" >/dev/null; then
+                break
+              fi
+              sleep 10
+            done
+            curl --fail --silent --user-agent "unllm-release/${VERSION}" "https://crates.io/api/v1/crates/${package}/${VERSION}" >/dev/null
+          done
+
+  build-binaries:
+    needs: [prepare, verify]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - run: cargo build -p unllm-gateway --release --locked --target ${{ matrix.target }}
+      - name: Package binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir dist
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cp "target/${TARGET}/release/unllm-gateway.exe" dist/
+            7z a "unllm-gateway-${VERSION}-${TARGET}.zip" ./dist/unllm-gateway.exe
+            shasum -a 256 "unllm-gateway-${VERSION}-${TARGET}.zip" > "unllm-gateway-${VERSION}-${TARGET}.zip.sha256"
+          else
+            cp "target/${TARGET}/release/unllm-gateway" dist/
+            tar -C dist -czf "unllm-gateway-${VERSION}-${TARGET}.tar.gz" unllm-gateway
+            shasum -a 256 "unllm-gateway-${VERSION}-${TARGET}.tar.gz" > "unllm-gateway-${VERSION}-${TARGET}.tar.gz.sha256"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: |
+            unllm-gateway-*.tar.gz
+            unllm-gateway-*.zip
+            unllm-gateway-*.sha256
+          if-no-files-found: error
+
+  github-release:
+    needs: [prepare, publish-crates, build-binaries]
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: release-assets
+          merge-multiple: true
+      - name: Package schemas
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          tar -czf "release-assets/unllm-schema-${VERSION}.tar.gz" schema/v1
+          shasum -a 256 "release-assets/unllm-schema-${VERSION}.tar.gz" > "release-assets/unllm-schema-${VERSION}.tar.gz.sha256"
+      - name: Create release notes
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; preserving its notes"
+          else
+            pnpm dlx changelogithub@15.0.5 --to "$TAG"
+          fi
+      - name: Upload missing assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          existing="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          for asset in release-assets/*; do
+            name="$(basename "$asset")"
+            if grep -Fxq "$name" <<<"$existing"; then
+              echo "Asset $name already exists"
+            else
+              gh release upload "$TAG" "$asset"
+            fi
+          done
