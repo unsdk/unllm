@@ -18,10 +18,10 @@ anthropic = ["dep:unllm-anthropic"]
 gemini = ["dep:unllm-gemini"]
 
 [dependencies]
-unllm-core = { path = "../unllm-core", version = "0.1.0" }
-unllm-openai = { path = "../unllm-openai", version = "0.1.0", optional = true }
-unllm-anthropic = { path = "../unllm-anthropic", version = "0.1.0", optional = true }
-unllm-gemini = { path = "../unllm-gemini", version = "0.1.0", optional = true }
+unllm-core = { path = "../unllm-core", version = "0.0.1" }
+unllm-openai = { path = "../unllm-openai", version = "0.0.1", optional = true }
+unllm-anthropic = { path = "../unllm-anthropic", version = "0.0.1", optional = true }
+unllm-gemini = { path = "../unllm-gemini", version = "0.0.1", optional = true }
 
 [dev-dependencies]
 serde_json.workspace = true

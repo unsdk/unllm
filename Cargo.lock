@@ -1524,7 +1524,7 @@ checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
 
 [[package]]
 name = "unllm"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "serde_json",
  "unllm-anthropic",
@@ -1535,7 +1535,7 @@ dependencies = [
 
 [[package]]
 name = "unllm-anthropic"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -1547,7 +1547,7 @@ dependencies = [
 
 [[package]]
 name = "unllm-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1562,7 +1562,7 @@ dependencies = [
 
 [[package]]
 name = "unllm-gateway"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1591,7 +1591,7 @@ dependencies = [
 
 [[package]]
 name = "unllm-gemini"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -1603,7 +1603,7 @@ dependencies = [
 
 [[package]]
 name = "unllm-openai"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
  "bytes",

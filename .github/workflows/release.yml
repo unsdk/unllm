@@ -46,7 +46,10 @@ jobs:
           set -euo pipefail
           cargo_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            [[ "$INPUT_VERSION" == v* ]]
+            if [[ "$INPUT_VERSION" != v* ]]; then
+              echo "::error::Version must use the vX.Y.Z format; received '$INPUT_VERSION'"
+              exit 1
+            fi
             version="${INPUT_VERSION#v}"
             tag="$INPUT_VERSION"
             git fetch origin "$DEFAULT_BRANCH" --tags
@@ -54,10 +57,19 @@ jobs:
             if [[ -z "$target_commit" ]]; then
               target_commit="$(git rev-parse "origin/$DEFAULT_BRANCH")"
             fi
-            git merge-base --is-ancestor "$target_commit" "origin/$DEFAULT_BRANCH"
-            [[ "$cargo_version" == "$version" ]]
+            if ! git merge-base --is-ancestor "$target_commit" "origin/$DEFAULT_BRANCH"; then
+              echo "::error::Commit $target_commit is not on origin/$DEFAULT_BRANCH"
+              exit 1
+            fi
+            if [[ "$cargo_version" != "$version" ]]; then
+              echo "::error::Tag $tag does not match workspace version $cargo_version"
+              exit 1
+            fi
             if git rev-parse "$tag" >/dev/null 2>&1; then
-              [[ "$(git rev-list -n 1 "$tag")" == "$target_commit" ]]
+              if [[ "$(git rev-list -n 1 "$tag")" != "$target_commit" ]]; then
+                echo "::error::Existing tag $tag points to a different commit"
+                exit 1
+              fi
             else
               git config user.name "github-actions[bot]"
               git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -67,7 +79,10 @@ jobs:
           else
             tag="$GITHUB_REF_NAME"
             version="${tag#v}"
-            [[ "$cargo_version" == "$version" ]]
+            if [[ "$cargo_version" != "$version" ]]; then
+              echo "::error::Tag $tag does not match workspace version $cargo_version"
+              exit 1
+            fi
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
