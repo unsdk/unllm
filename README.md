@@ -106,6 +106,8 @@ Live provider tests are opt-in through pnpm test:live and require the correspond
 
 All crates use one version. Pushing vX.Y.Z, or approving the manual release workflow for an optional commit on the default branch, validates the workspace, publishes crates in dependency order, builds gateway archives for five targets, and creates a GitHub Release with changelogithub. An omitted manual commit defaults to the latest commit on the remote default branch.
 
+Pushes to main, and manual runs for a commit on main, publish a rolling prerelease named nightly. It repeats that validation without packaging or publishing crates, replaces the nightly gateway and schema archives for the same five targets, and moves the nightly tag only after every target succeeds.
+
 Before the first release:
 
 1. Confirm ownership or availability of every unllm-* crate name.

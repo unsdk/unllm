@@ -1,0 +1,204 @@
+name: Nightly
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Optional commit SHA on main; defaults to its latest commit
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-26.04
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      subject: ${{ steps.commit.outputs.subject }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: commit
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            target="$INPUT_COMMIT"
+            if [[ -z "$target" ]]; then
+              target="$(git rev-parse origin/main)"
+            fi
+            if ! git rev-parse --verify --quiet "${target}^{commit}" >/dev/null; then
+              echo "::error::Commit $target does not exist"
+              exit 1
+            fi
+            sha="$(git rev-parse "${target}^{commit}")"
+            if ! git merge-base --is-ancestor "$sha" origin/main; then
+              echo "::error::Commit $sha is not on origin/main"
+              exit 1
+            fi
+          else
+            sha="$GITHUB_SHA"
+          fi
+          subject="$(git log -1 --format=%s "$sha")"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "subject<<EOF"
+            printf '%s\n' "$subject"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: prepare
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+      - run: cargo test --workspace --all-features --locked
+      - run: cargo run -p unllm-core --example generate-schema -- --check
+      - run: cargo build -p unllm-gateway --locked
+      - run: pnpm typecheck:sdk
+      - run: pnpm test:sdk
+
+  build-binaries:
+    needs: [prepare, verify]
+    strategy:
+      # 任一平台失败就取消其余构建，避免用残缺附件覆盖 nightly
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-26.04
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-26.04-arm
+            target: aarch64-unknown-linux-musl
+          - os: macos-26-intel
+            target: x86_64-apple-darwin
+          - os: macos-26
+            target: aarch64-apple-darwin
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - run: cargo build -p unllm-gateway --release --locked --target ${{ matrix.target }}
+      - name: Package binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          mkdir dist
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cp "target/${TARGET}/release/unllm-gateway.exe" dist/
+            archive="unllm-gateway-nightly-${TARGET}.zip"
+            7z a "$archive" ./dist/unllm-gateway.exe
+          else
+            cp "target/${TARGET}/release/unllm-gateway" dist/
+            archive="unllm-gateway-nightly-${TARGET}.tar.gz"
+            tar -C dist -czf "$archive" unllm-gateway
+          fi
+          # Windows 的 Git Bash 没有 shasum，用 sha256sum；macOS 只有 shasum
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$archive" > "${archive}.sha256"
+          else
+            shasum -a 256 "$archive" > "${archive}.sha256"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: |
+            unllm-gateway-nightly-*
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, build-binaries]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: release-assets
+          merge-multiple: true
+      - name: Package schemas
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf release-assets/unllm-schema-nightly.tar.gz schema/v1
+          sha256sum release-assets/unllm-schema-nightly.tar.gz > release-assets/unllm-schema-nightly.tar.gz.sha256
+      - name: Publish nightly release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+          SUBJECT: ${{ needs.prepare.outputs.subject }}
+        run: |
+          set -euo pipefail
+          printf '%s\n\n%s\n' "$SHA" "$SUBJECT" > release-notes.txt
+          count="$(find release-assets -type f | wc -l | tr -d ' ')"
+          if [[ "$count" != "12" ]]; then
+            echo "::error::Expected 12 nightly assets, found $count"
+            exit 1
+          fi
+          if gh release view nightly >/dev/null 2>&1; then
+            # ponytail: --clobber 会先删同名附件再上传。构建失败到不了这里；上传中途失败时旧附件可能已删除。原子替换要改成先传草稿再切换 tag。
+            gh release upload nightly release-assets/* --clobber
+          else
+            gh release create nightly \
+              --target "$SHA" \
+              --title "nightly" \
+              --prerelease \
+              --latest=false \
+              --notes-file release-notes.txt \
+              release-assets/*
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f -a nightly "$SHA" -m "Nightly $SHA"
+          git push --force origin refs/tags/nightly
+          gh release edit nightly \
+            --target "$SHA" \
+            --title "nightly" \
+            --prerelease \
+            --latest=false \
+            --notes-file release-notes.txt
